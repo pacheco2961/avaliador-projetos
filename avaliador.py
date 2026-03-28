@@ -14,7 +14,25 @@ CRITERIOS = [
     "acompanhamento e avaliação",
     "resultados e produtos"
 ]
-
+ODS_NOMES = {
+    1: "Erradicação da Pobreza",
+    2: "Fome Zero",
+    3: "Saúde e Bem-estar",
+    4: "Educação de Qualidade",
+    5: "Igualdade de Gênero",
+    6: "Água Potável e Saneamento",
+    7: "Energia Limpa e Acessível",
+    8: "Trabalho Decente e Crescimento Econômico",
+    9: "Indústria, Inovação e Infraestrutura",
+    10: "Redução das Desigualdades",
+    11: "Cidades e Comunidades Sustentáveis",
+    12: "Consumo e Produção Responsáveis",
+    13: "Ação contra a Mudança Global do Clima",
+    14: "Vida na Água",
+    15: "Vida Terrestre",
+    16: "Paz, Justiça e Instituições Eficazes",
+    17: "Parcerias e Meios de Implementação"
+}
 # -----------------------------
 # DETECÇÃO ROBUSTA DE ODS
 # -----------------------------
@@ -110,7 +128,10 @@ def gerar_parecer(resultado):
     texto += "\n2. Critérios Eliminatórios\n\n"
 
     if resultado["ods"]:
-        ods_str = ", ".join([f"ODS {i}" for i in resultado["ods_lista"]])
+        ods_str = ", ".join([
+            f"ODS {i} – {ODS_NOMES.get(i, '')}"
+            for i in resultado["ods_lista"]
+        ])
         texto += f"Relação com ODS: Atendido ({ods_str})\n"
     else:
         texto += "Relação com ODS: Não atendido\n"
@@ -123,6 +144,13 @@ def gerar_parecer(resultado):
 
     texto += "\n4. Considerações Finais\n\n"
     texto += "O projeto apresenta consistência e potencial de impacto acadêmico e social.\n"
+
+    # -----------------------------
+    # ASSINATURA
+    # -----------------------------
+    texto += "\n\n________________________________________\n"
+    texto += "Avaliador Institucional\n"
+    texto += "Sistema Automatizado de Avaliação de Projetos\n"
 
     return texto
 
