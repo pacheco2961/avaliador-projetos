@@ -1,38 +1,39 @@
-import streamlit as st
+import re
 
-CRITERIOS = [
-    "coerencia",
-    "protagonismo estudantil",
-    "participação da sociedade",
-    "justificativa",
-    "objetivos",
-    "metodologia",
-    "acompanhamento e avaliação",
-    "resultados e produtos"
-]
-
-# -----------------------------
-# DETECÇÃO DE ODS (COM NÚMERO)
-# -----------------------------
 def identificar_ods(texto):
     texto = texto.lower()
-    ods_encontrados = []
+    ods_encontrados = set()
 
-    for i in range(1, 18):
-        if f"ods {i}" in texto or f"ods-{i}" in texto:
-            ods_encontrados.append(i)
+    # 1. padrões diretos: "ods 4", "ods-4"
+    matches = re.findall(r"ods[\s\-]*(\d{1,2})", texto)
+    for m in matches:
+        n = int(m)
+        if 1 <= n <= 17:
+            ods_encontrados.add(n)
 
-    if "objetivo de desenvolvimento sustentável" in texto:
-        for i in range(1, 18):
-            if f"{i}" in texto:
-                ods_encontrados.append(i)
+    # 2. padrão completo: "objetivo(s) de desenvolvimento sustentável"
+    if "objetivo de desenvolvimento sustentável" in texto or \
+       "objetivos de desenvolvimento sustentável" in texto:
 
-    return list(set(ods_encontrados))
+        # tenta capturar número próximo
+        matches = re.findall(r"(?:objetivo[s]? de desenvolvimento sustentável.*?)(\d{1,2})", texto)
+        for m in matches:
+            n = int(m)
+            if 1 <= n <= 17:
+                ods_encontrados.add(n)
+
+    # 3. padrão textual mais solto (caso comum)
+    matches = re.findall(r"desenvolvimento sustentável.*?(\d{1,2})", texto)
+    for m in matches:
+        n = int(m)
+        if 1 <= n <= 17:
+            ods_encontrados.add(n)
+
+    return sorted(list(ods_encontrados))
 
 
 def detectar_ods(texto):
     return len(identificar_ods(texto)) > 0
-
 
 # -----------------------------
 # AÇÕES
