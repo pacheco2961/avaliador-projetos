@@ -1,4 +1,9 @@
+import streamlit as st
 import re
+
+# -----------------------------
+# CONSTANTES (OBRIGATÓRIO NO TOPO)
+# -----------------------------
 CRITERIOS = [
     "coerencia",
     "protagonismo estudantil",
@@ -9,6 +14,10 @@ CRITERIOS = [
     "acompanhamento e avaliação",
     "resultados e produtos"
 ]
+
+# -----------------------------
+# DETECÇÃO ROBUSTA DE ODS
+# -----------------------------
 def identificar_ods(texto):
     texto = texto.lower()
     ods_encontrados = set()
@@ -20,18 +29,17 @@ def identificar_ods(texto):
         if 1 <= n <= 17:
             ods_encontrados.add(n)
 
-    # 2. padrão completo: "objetivo(s) de desenvolvimento sustentável"
-    if "objetivo de desenvolvimento sustentável" in texto or \
-       "objetivos de desenvolvimento sustentável" in texto:
+    # 2. padrão completo com contexto
+    matches = re.findall(
+        r"(?:objetivo[s]? de desenvolvimento sustentável.*?)(\d{1,2})",
+        texto
+    )
+    for m in matches:
+        n = int(m)
+        if 1 <= n <= 17:
+            ods_encontrados.add(n)
 
-        # tenta capturar número próximo
-        matches = re.findall(r"(?:objetivo[s]? de desenvolvimento sustentável.*?)(\d{1,2})", texto)
-        for m in matches:
-            n = int(m)
-            if 1 <= n <= 17:
-                ods_encontrados.add(n)
-
-    # 3. padrão textual mais solto (caso comum)
+    # 3. padrão genérico (mais tolerante)
     matches = re.findall(r"desenvolvimento sustentável.*?(\d{1,2})", texto)
     for m in matches:
         n = int(m)
@@ -44,13 +52,15 @@ def identificar_ods(texto):
 def detectar_ods(texto):
     return len(identificar_ods(texto)) > 0
 
+
 # -----------------------------
-# AÇÕES
+# DETECÇÃO DE AÇÕES
 # -----------------------------
 def detectar_acoes(texto):
     texto = texto.lower()
     palavras = ["oficina", "evento", "ação", "atividade", "sequência didática"]
-    return sum(texto.count(p) for p in palavras) >= 2
+    contagem = sum(texto.count(p) for p in palavras)
+    return contagem >= 2
 
 
 # -----------------------------
@@ -62,10 +72,10 @@ def pontuar(texto, criterio):
     regras = {
         "coerencia": 10 if "objetivo" in texto else 5,
         "protagonismo estudantil": 15 if "estudantes" in texto else 5,
-        "participação da sociedade": 15 if "escola" in texto else 5,
+        "participação da sociedade": 15 if "escola" in texto or "comunidade" in texto else 5,
         "justificativa": 10 if "justificativa" in texto else 5,
         "objetivos": 15 if "objetivo geral" in texto else 10,
-        "metodologia": 15 if "etapa" in texto else 10,
+        "metodologia": 15 if "etapa" in texto or "metodologia" in texto else 10,
         "acompanhamento e avaliação": 10 if "avaliação" in texto else 5,
         "resultados e produtos": 10 if "resultados" in texto else 5
     }
@@ -74,7 +84,7 @@ def pontuar(texto, criterio):
 
 
 # -----------------------------
-# PARECER
+# GERAÇÃO DE PARECER
 # -----------------------------
 def gerar_parecer(resultado):
 
@@ -105,23 +115,30 @@ def gerar_parecer(resultado):
 
 
 # -----------------------------
-# PRINCIPAL
+# FUNÇÃO PRINCIPAL
 # -----------------------------
 def avaliar_projeto(texto):
 
     criterios = {}
+
+    # Avaliação por critérios
     for c in CRITERIOS:
         criterios[c] = {
             "nota": pontuar(texto, c),
             "comentario": "Avaliação baseada em regras estruturais."
         }
 
+    # ODS
     ods_lista = identificar_ods(texto)
     ods = len(ods_lista) > 0
+
+    # Ações
     acoes = detectar_acoes(texto)
 
+    # Nota final
     nota_total = sum(c["nota"] for c in criterios.values())
 
+    # Resultado
     resultado = {
         "nota_total": nota_total,
         "criterios": criterios,
@@ -131,7 +148,7 @@ def avaliar_projeto(texto):
         "aprovado": ods and acoes
     }
 
+    # Parecer
     resultado["parecer"] = gerar_parecer(resultado)
 
     return resultado
-
