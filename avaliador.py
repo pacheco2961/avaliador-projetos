@@ -14,6 +14,7 @@ CRITERIOS = [
     "acompanhamento e avaliação",
     "resultados e produtos"
 ]
+
 ODS_NOMES = {
     1: "Erradicação da Pobreza",
     2: "Fome Zero",
@@ -33,6 +34,7 @@ ODS_NOMES = {
     16: "Paz, Justiça e Instituições Eficazes",
     17: "Parcerias e Meios de Implementação"
 }
+
 # -----------------------------
 # DETECÇÃO ROBUSTA DE ODS
 # -----------------------------
@@ -40,14 +42,12 @@ def identificar_ods(texto):
     texto = texto.lower()
     ods_encontrados = set()
 
-    # 1. padrão direto: ODS 4, ODS-4, ODS nº 4
     matches = re.findall(r"ods[\s\-]*n?[ºo]?\s*(\d{1,2})", texto)
     for m in matches:
         n = int(m)
         if 1 <= n <= 17:
             ods_encontrados.add(n)
 
-    # 2. padrão: objetivo(s) de desenvolvimento sustentável ... 4
     matches = re.findall(
         r"objetivo[s]? de desenvolvimento sustentável.{0,50}?(\d{1,2})",
         texto
@@ -57,7 +57,6 @@ def identificar_ods(texto):
         if 1 <= n <= 17:
             ods_encontrados.add(n)
 
-    # 3. variações com número/nº
     matches = re.findall(
         r"(?:sustentável.*?(?:número|numero|nº|n\.|n)\s*(\d{1,2}))",
         texto
@@ -67,7 +66,6 @@ def identificar_ods(texto):
         if 1 <= n <= 17:
             ods_encontrados.add(n)
 
-    # 4. fallback: número próximo de "sustentável"
     palavras = texto.split()
     for i, palavra in enumerate(palavras):
         if "sustentável" in palavra:
@@ -85,13 +83,12 @@ def detectar_ods(texto):
 
 
 # -----------------------------
-# DETECÇÃO DE AÇÕES
+# AÇÕES
 # -----------------------------
 def detectar_acoes(texto):
     texto = texto.lower()
     palavras = ["oficina", "evento", "ação", "atividade", "sequência didática"]
-    contagem = sum(texto.count(p) for p in palavras)
-    return contagem >= 2
+    return sum(texto.count(p) for p in palavras) >= 2
 
 
 # -----------------------------
@@ -115,7 +112,7 @@ def pontuar(texto, criterio):
 
 
 # -----------------------------
-# GERAÇÃO DE PARECER
+# PARECER
 # -----------------------------
 def gerar_parecer(resultado):
 
@@ -145,9 +142,6 @@ def gerar_parecer(resultado):
     texto += "\n4. Considerações Finais\n\n"
     texto += "O projeto apresenta consistência e potencial de impacto acadêmico e social.\n"
 
-    # -----------------------------
-    # ASSINATURA
-    # -----------------------------
     texto += "\n\n________________________________________\n"
     texto += "Avaliador Institucional\n"
     texto += "Sistema Automatizado de Avaliação de Projetos\n"
@@ -156,7 +150,7 @@ def gerar_parecer(resultado):
 
 
 # -----------------------------
-# FUNÇÃO PRINCIPAL
+# PRINCIPAL
 # -----------------------------
 def avaliar_projeto(texto):
 
@@ -170,7 +164,6 @@ def avaliar_projeto(texto):
 
     ods_lista = identificar_ods(texto)
     ods = len(ods_lista) > 0
-
     acoes = detectar_acoes(texto)
 
     nota_total = sum(c["nota"] for c in criterios.values())
