@@ -1,15 +1,4 @@
 import streamlit as st
-import re
-
-# IA opcional
-try:
-    from openai import OpenAI
-    if "OPENAI_API_KEY" in st.secrets:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    else:
-        client = None
-except:
-    client = None
 
 CRITERIOS = [
     "coerencia",
@@ -23,19 +12,40 @@ CRITERIOS = [
 ]
 
 # -----------------------------
-# REGRAS
+# DETECÇÃO DE ODS (COM NÚMERO)
 # -----------------------------
-def detectar_ods(texto):
+def identificar_ods(texto):
     texto = texto.lower()
-    return any(p in texto for p in [
-        "ods", "agenda 2030", "desenvolvimento sustentável"
-    ])
+    ods_encontrados = []
 
+    for i in range(1, 18):
+        if f"ods {i}" in texto or f"ods-{i}" in texto:
+            ods_encontrados.append(i)
+
+    if "objetivo de desenvolvimento sustentável" in texto:
+        for i in range(1, 18):
+            if f"{i}" in texto:
+                ods_encontrados.append(i)
+
+    return list(set(ods_encontrados))
+
+
+def detectar_ods(texto):
+    return len(identificar_ods(texto)) > 0
+
+
+# -----------------------------
+# AÇÕES
+# -----------------------------
 def detectar_acoes(texto):
     texto = texto.lower()
     palavras = ["oficina", "evento", "ação", "atividade", "sequência didática"]
     return sum(texto.count(p) for p in palavras) >= 2
 
+
+# -----------------------------
+# PONTUAÇÃO
+# -----------------------------
 def pontuar(texto, criterio):
     texto = texto.lower()
 
@@ -52,21 +62,37 @@ def pontuar(texto, criterio):
 
     return regras.get(criterio, 5)
 
+
 # -----------------------------
 # PARECER
 # -----------------------------
 def gerar_parecer(resultado):
+
     texto = "PARECER TÉCNICO DE AVALIAÇÃO DE PROJETO DE EXTENSÃO\n\n"
 
+    texto += "1. Análise por Critérios\n\n"
     for c, d in resultado["criterios"].items():
-        texto += f"{c.capitalize()}: Nota {d['nota']}\n"
+        texto += f"- {c.capitalize()}: Nota {d['nota']}\n"
 
-    texto += f"\nODS: {'Atendido' if resultado['ods'] else 'Não atendido'}"
-    texto += f"\nAções: {'Atendido' if resultado['acoes'] else 'Não atendido'}"
-    texto += f"\n\nNota final: {resultado['nota_total']} / 140"
-    texto += f"\nSituação: {'APROVADO' if resultado['aprovado'] else 'REPROVADO'}"
+    texto += "\n2. Critérios Eliminatórios\n\n"
+
+    if resultado["ods"]:
+        ods_str = ", ".join([f"ODS {i}" for i in resultado["ods_lista"]])
+        texto += f"Relação com ODS: Atendido ({ods_str})\n"
+    else:
+        texto += "Relação com ODS: Não atendido\n"
+
+    texto += f"Ações de extensão: {'Atendido' if resultado['acoes'] else 'Não atendido'}\n"
+
+    texto += "\n3. Resultado Final\n\n"
+    texto += f"Pontuação total: {resultado['nota_total']} / 140\n"
+    texto += f"Situação: {'APROVADO' if resultado['aprovado'] else 'REPROVADO'}\n"
+
+    texto += "\n4. Considerações Finais\n\n"
+    texto += "O projeto apresenta consistência e potencial de impacto acadêmico e social.\n"
 
     return texto
+
 
 # -----------------------------
 # PRINCIPAL
@@ -80,7 +106,8 @@ def avaliar_projeto(texto):
             "comentario": "Avaliação baseada em regras estruturais."
         }
 
-    ods = detectar_ods(texto)
+    ods_lista = identificar_ods(texto)
+    ods = len(ods_lista) > 0
     acoes = detectar_acoes(texto)
 
     nota_total = sum(c["nota"] for c in criterios.values())
@@ -89,6 +116,7 @@ def avaliar_projeto(texto):
         "nota_total": nota_total,
         "criterios": criterios,
         "ods": ods,
+        "ods_lista": ods_lista,
         "acoes": acoes,
         "aprovado": ods and acoes
     }
@@ -96,3 +124,4 @@ def avaliar_projeto(texto):
     resultado["parecer"] = gerar_parecer(resultado)
 
     return resultado
+
