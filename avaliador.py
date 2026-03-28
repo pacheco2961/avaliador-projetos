@@ -3,8 +3,9 @@ from openai import OpenAI
 import json
 import re
 
-import streamlit as st
-
+# -----------------------------
+# CONFIGURAÇÃO SEGURA DA API
+# -----------------------------
 if "OPENAI_API_KEY" not in st.secrets:
     raise ValueError("❌ API Key não encontrada. Configure em Settings → Secrets")
 
@@ -23,16 +24,30 @@ CRITERIOS = [
 
 ESCALA = [0, 5, 10, 15]
 
-
 # -----------------------------
-# EXTRAÇÃO SEGURA DE JSON
+# EXTRAÇÃO ROBUSTA DE JSON
 # -----------------------------
 def extrair_json(texto):
-    match = re.search(r"\{.*\}", texto, re.DOTALL)
-    if match:
-        return json.loads(match.group())
-    return None
+    try:
+        # remove markdown
+        texto = texto.replace("```json", "").replace("```", "")
 
+        match = re.search(r"\{.*\}", texto, re.DOTALL)
+
+        if match:
+            json_str = match.group()
+            return json.loads(json_str)
+
+    except Exception as e:
+        return {
+            "erro": str(e),
+            "resposta_bruta": texto
+        }
+
+    return {
+        "erro": "JSON não encontrado",
+        "resposta_bruta": texto
+    }
 
 # -----------------------------
 # REGRAS DETERMINÍSTICAS
@@ -43,17 +58,14 @@ def detectar_ods(texto):
         "ods", "agenda 2030", "desenvolvimento sustentável"
     ])
 
-
 def detectar_acoes(texto):
     texto = texto.lower()
-    palavras = ["oficina", "evento", "ação", "projeto", "atividade"]
+    palavras = ["oficina", "evento", "ação", "atividade", "sequência didática"]
     contagem = sum(texto.count(p) for p in palavras)
     return contagem >= 2
 
-
 def normalizar_nota(nota):
     return min(ESCALA, key=lambda x: abs(x - nota))
-
 
 # -----------------------------
 # AVALIAÇÃO PRINCIPAL
@@ -68,7 +80,10 @@ def avaliar_projeto(texto):
     REGRAS:
     - Use SOMENTE notas: 0, 5, 10 ou 15
     - Seja técnico e objetivo
-    - Retorne JSON válido
+    - Retorne APENAS JSON válido
+    - NÃO escreva explicações fora do JSON
+    - NÃO use markdown
+    - NÃO use ```json
 
     CRITÉRIOS:
     {CRITERIOS}
@@ -100,10 +115,28 @@ def avaliar_projeto(texto):
         )
 
         conteudo = response.choices[0].message.content
+
         resultado = extrair_json(conteudo)
 
-        if not resultado:
-            raise ValueError("JSON inválido")
+        # -----------------------------
+        # DEBUG (VISÍVEL NO APP)
+        # -----------------------------
+        if "erro" in resultado:
+            return {
+                "nota_total": 0,
+                "criterios": {},
+                "ods": False,
+                "acoes": False,
+                "aprovado": False,
+                "erro": resultado["erro"],
+                "resposta_bruta": resultado["resposta_bruta"]
+            }
+
+        # -----------------------------
+        # VALIDAÇÃO DO JSON
+        # -----------------------------
+        if "criterios" not in resultado:
+            raise ValueError("JSON sem 'criterios'")
 
         # -----------------------------
         # NORMALIZAÇÃO DAS NOTAS
