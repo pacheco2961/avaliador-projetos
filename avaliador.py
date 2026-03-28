@@ -3,7 +3,6 @@ from openai import OpenAI
 import json
 import re
 
-# Cliente OpenAI usando secrets do Streamlit Cloud
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 CRITERIOS = [
@@ -17,56 +16,74 @@ CRITERIOS = [
     "resultados e produtos"
 ]
 
-def extrair_json(texto):
-    """
-    Extrai o JSON mesmo que a resposta da IA venha com texto extra.
-    """
-    try:
-        match = re.search(r"\{.*\}", texto, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        else:
-            raise ValueError("JSON não encontrado")
-    except Exception as e:
-        return {
-            "erro": str(e),
-            "conteudo_bruto": texto
-        }
+ESCALA = [0, 5, 10, 15]
 
+
+# -----------------------------
+# EXTRAÇÃO SEGURA DE JSON
+# -----------------------------
+def extrair_json(texto):
+    match = re.search(r"\{.*\}", texto, re.DOTALL)
+    if match:
+        return json.loads(match.group())
+    return None
+
+
+# -----------------------------
+# REGRAS DETERMINÍSTICAS
+# -----------------------------
+def detectar_ods(texto):
+    texto = texto.lower()
+    return any(p in texto for p in [
+        "ods", "agenda 2030", "desenvolvimento sustentável"
+    ])
+
+
+def detectar_acoes(texto):
+    texto = texto.lower()
+    palavras = ["oficina", "evento", "ação", "projeto", "atividade"]
+    contagem = sum(texto.count(p) for p in palavras)
+    return contagem >= 2
+
+
+def normalizar_nota(nota):
+    return min(ESCALA, key=lambda x: abs(x - nota))
+
+
+# -----------------------------
+# AVALIAÇÃO PRINCIPAL
+# -----------------------------
 def avaliar_projeto(texto):
 
     prompt = f"""
-    Avalie o projeto abaixo com base nos critérios do edital PRX 25/2025.
+    Você é um avaliador institucional do IFSP.
 
-    Para cada critério:
-    - dê nota de 0 a 15
-    - escreva um comentário curto
+    Avalie o projeto conforme o edital PRX 25/2025.
 
-    Critérios:
+    REGRAS:
+    - Use SOMENTE notas: 0, 5, 10 ou 15
+    - Seja técnico e objetivo
+    - Retorne JSON válido
+
+    CRITÉRIOS:
     {CRITERIOS}
 
-    Verifique também:
-    - Se há menção a ODS (retorne true ou false)
-    - Se há pelo menos duas ações de extensão (true ou false)
-
-    Retorne SOMENTE em JSON no seguinte formato:
+    FORMATO:
 
     {{
-        "criterios": {{
-            "coerencia": {{ "nota": int, "comentario": str }},
-            "protagonismo estudantil": {{ "nota": int, "comentario": str }},
-            "participação da sociedade": {{ "nota": int, "comentario": str }},
-            "justificativa": {{ "nota": int, "comentario": str }},
-            "objetivos": {{ "nota": int, "comentario": str }},
-            "metodologia": {{ "nota": int, "comentario": str }},
-            "acompanhamento e avaliação": {{ "nota": int, "comentario": str }},
-            "resultados e produtos": {{ "nota": int, "comentario": str }}
-        }},
-        "ods": true,
-        "acoes": true
+    "criterios": {{
+        "coerencia": {{"nota": 10, "comentario": ""}},
+        "protagonismo estudantil": {{"nota": 10, "comentario": ""}},
+        "participação da sociedade": {{"nota": 10, "comentario": ""}},
+        "justificativa": {{"nota": 10, "comentario": ""}},
+        "objetivos": {{"nota": 10, "comentario": ""}},
+        "metodologia": {{"nota": 10, "comentario": ""}},
+        "acompanhamento e avaliação": {{"nota": 10, "comentario": ""}},
+        "resultados e produtos": {{"nota": 10, "comentario": ""}}
+    }}
     }}
 
-    Projeto:
+    PROJETO:
     {texto}
     """
 
@@ -74,33 +91,36 @@ def avaliar_projeto(texto):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
+            temperature=0.1
         )
 
         conteudo = response.choices[0].message.content
-
         resultado = extrair_json(conteudo)
 
-        # Verifica erro na extração
-        if "erro" in resultado:
-            return {
-                "nota_total": 0,
-                "criterios": {},
-                "ods": False,
-                "acoes": False,
-                "aprovado": False,
-                "erro": resultado["erro"],
-                "resposta_bruta": resultado["conteudo_bruto"]
-            }
+        if not resultado:
+            raise ValueError("JSON inválido")
 
-        nota_total = sum([c["nota"] for c in resultado["criterios"].values()])
+        # -----------------------------
+        # NORMALIZAÇÃO DAS NOTAS
+        # -----------------------------
+        for c in resultado["criterios"]:
+            nota = resultado["criterios"][c]["nota"]
+            resultado["criterios"][c]["nota"] = normalizar_nota(nota)
+
+        # -----------------------------
+        # REGRAS FIXAS (EDITAL)
+        # -----------------------------
+        ods = detectar_ods(texto)
+        acoes = detectar_acoes(texto)
+
+        nota_total = sum(c["nota"] for c in resultado["criterios"].values())
 
         return {
             "nota_total": nota_total,
             "criterios": resultado["criterios"],
-            "ods": resultado["ods"],
-            "acoes": resultado["acoes"],
-            "aprovado": resultado["ods"] and resultado["acoes"]
+            "ods": ods,
+            "acoes": acoes,
+            "aprovado": ods and acoes
         }
 
     except Exception as e:
