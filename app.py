@@ -2,52 +2,96 @@ import streamlit as st
 from utils import extrair_texto_pdf
 from avaliador import avaliar_projeto
 
-st.set_page_config(page_title="Avaliador de Projetos", layout="wide")
+# PDF
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+import io
 
-st.title("🤖 Avaliador de Projetos de Extensão")
-st.write("Baseado no Edital PRX 25/2025")
+# -----------------------------
+# PDF
+# -----------------------------
+def gerar_pdf_parecer(texto_parecer):
+    buffer = io.BytesIO()
 
-opcao = st.radio("Escolha o tipo de entrada:", ["Texto", "PDF"])
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2*cm,
+        leftMargin=2*cm,
+        topMargin=2*cm,
+        bottomMargin=2*cm
+    )
+
+    styles = getSampleStyleSheet()
+    elementos = []
+
+    elementos.append(Paragraph("<b>PARECER TÉCNICO DE AVALIAÇÃO</b>", styles["Title"]))
+    elementos.append(Spacer(1, 12))
+
+    for linha in texto_parecer.split("\n"):
+        elementos.append(Paragraph(linha, styles["Normal"]))
+        elementos.append(Spacer(1, 8))
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer
+
+# -----------------------------
+# APP
+# -----------------------------
+st.set_page_config(page_title="Avaliador", layout="wide")
+
+st.title("🤖 Avaliador de Projetos")
+
+opcao = st.radio("Entrada:", ["Texto", "PDF"])
 
 texto_projeto = ""
 
 if opcao == "Texto":
-    texto_projeto = st.text_area("Cole o texto do projeto aqui:", height=300)
+    texto_projeto = st.text_area("Cole o projeto", height=300)
 
-elif opcao == "PDF":
-    arquivo = st.file_uploader("Envie o PDF do projeto", type=["pdf"])
+else:
+    arquivo = st.file_uploader("Envie PDF", type=["pdf"])
     if arquivo:
         texto_projeto = extrair_texto_pdf(arquivo)
-        st.success("Texto extraído com sucesso!")
+        st.success("PDF carregado")
 
+# -----------------------------
+# AVALIAÇÃO
+# -----------------------------
 if st.button("🚀 Avaliar Projeto"):
     if not texto_projeto:
-        st.warning("Insira um projeto para avaliação.")
+        st.warning("Insira um projeto")
     else:
-        with st.spinner("Avaliando..."):
-            resultado = avaliar_projeto(texto_projeto)
-
-        # 🔍 DEBUG (CORRETO)
-        if "erro" in resultado:
-            st.error("Erro na avaliação:")
-            st.write(resultado["erro"])
-
-            if "resposta_bruta" in resultado:
-                st.write("Resposta da IA:")
-                st.write(resultado["resposta_bruta"])
+        resultado = avaliar_projeto(texto_projeto)
 
         st.subheader("📊 Resultado")
+        st.metric("Nota", f"{resultado['nota_total']} / 140")
 
-        st.metric("Nota Final", f"{resultado['nota_total']} / 140")
+        for c, d in resultado["criterios"].items():
+            st.write(f"{c}: {d['nota']}")
 
-        st.write("### 📌 Critérios")
-        for criterio, dados in resultado["criterios"].items():
-            st.write(f"**{criterio.capitalize()}**: {dados['nota']}")
-            st.write(f"Comentário: {dados['comentario']}")
+        st.write("ODS:", "✔️" if resultado["ods"] else "❌")
+        st.write("Ações:", "✔️" if resultado["acoes"] else "❌")
 
-        st.write("### ⚠️ Eliminatórios")
-        st.write(f"ODS: {'✔️' if resultado['ods'] else '❌'}")
-        st.write(f"Ações de extensão: {'✔️' if resultado['acoes'] else '❌'}")
-
-        st.write("### ✅ Status Final")
         st.success("APROVADO" if resultado["aprovado"] else "REPROVADO")
+
+        # -----------------------------
+        # PARECER
+        # -----------------------------
+        st.write("### 📄 Parecer Técnico")
+
+        parecer = resultado["parecer"]
+
+        st.text_area("Parecer", parecer, height=300)
+
+        pdf = gerar_pdf_parecer(parecer)
+
+        st.download_button(
+            "📥 Baixar PDF",
+            pdf,
+            file_name="parecer.pdf",
+            mime="application/pdf"
+        )
