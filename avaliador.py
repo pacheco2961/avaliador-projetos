@@ -3,6 +3,11 @@ from openai import OpenAI
 import json
 import re
 
+import streamlit as st
+
+if "OPENAI_API_KEY" not in st.secrets:
+    raise ValueError("❌ API Key não encontrada. Configure em Settings → Secrets")
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 CRITERIOS = [
