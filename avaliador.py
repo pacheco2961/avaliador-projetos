@@ -2,7 +2,7 @@ import streamlit as st
 import re
 
 # -----------------------------
-# CONSTANTES (OBRIGATÓRIO NO TOPO)
+# CONSTANTES
 # -----------------------------
 CRITERIOS = [
     "coerencia",
@@ -22,16 +22,16 @@ def identificar_ods(texto):
     texto = texto.lower()
     ods_encontrados = set()
 
-    # 1. padrões diretos: "ods 4", "ods-4"
-    matches = re.findall(r"ods[\s\-]*(\d{1,2})", texto)
+    # 1. padrão direto: ODS 4, ODS-4, ODS nº 4
+    matches = re.findall(r"ods[\s\-]*n?[ºo]?\s*(\d{1,2})", texto)
     for m in matches:
         n = int(m)
         if 1 <= n <= 17:
             ods_encontrados.add(n)
 
-    # 2. padrão completo com contexto
+    # 2. padrão: objetivo(s) de desenvolvimento sustentável ... 4
     matches = re.findall(
-        r"(?:objetivo[s]? de desenvolvimento sustentável.*?)(\d{1,2})",
+        r"objetivo[s]? de desenvolvimento sustentável.{0,50}?(\d{1,2})",
         texto
     )
     for m in matches:
@@ -39,12 +39,25 @@ def identificar_ods(texto):
         if 1 <= n <= 17:
             ods_encontrados.add(n)
 
-    # 3. padrão genérico (mais tolerante)
-    matches = re.findall(r"desenvolvimento sustentável.*?(\d{1,2})", texto)
+    # 3. variações com número/nº
+    matches = re.findall(
+        r"(?:sustentável.*?(?:número|numero|nº|n\.|n)\s*(\d{1,2}))",
+        texto
+    )
     for m in matches:
         n = int(m)
         if 1 <= n <= 17:
             ods_encontrados.add(n)
+
+    # 4. fallback: número próximo de "sustentável"
+    palavras = texto.split()
+    for i, palavra in enumerate(palavras):
+        if "sustentável" in palavra:
+            for j in range(i, min(i + 6, len(palavras))):
+                if palavras[j].isdigit():
+                    n = int(palavras[j])
+                    if 1 <= n <= 17:
+                        ods_encontrados.add(n)
 
     return sorted(list(ods_encontrados))
 
@@ -121,24 +134,19 @@ def avaliar_projeto(texto):
 
     criterios = {}
 
-    # Avaliação por critérios
     for c in CRITERIOS:
         criterios[c] = {
             "nota": pontuar(texto, c),
             "comentario": "Avaliação baseada em regras estruturais."
         }
 
-    # ODS
     ods_lista = identificar_ods(texto)
     ods = len(ods_lista) > 0
 
-    # Ações
     acoes = detectar_acoes(texto)
 
-    # Nota final
     nota_total = sum(c["nota"] for c in criterios.values())
 
-    # Resultado
     resultado = {
         "nota_total": nota_total,
         "criterios": criterios,
@@ -148,7 +156,6 @@ def avaliar_projeto(texto):
         "aprovado": ods and acoes
     }
 
-    # Parecer
     resultado["parecer"] = gerar_parecer(resultado)
 
     return resultado
