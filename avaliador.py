@@ -1,5 +1,14 @@
 import re
-
+CRITERIOS = [
+    "coerencia",
+    "protagonismo estudantil",
+    "participação da sociedade",
+    "justificativa",
+    "objetivos",
+    "metodologia",
+    "acompanhamento e avaliação",
+    "resultados e produtos"
+]
 def identificar_ods(texto):
     texto = texto.lower()
     ods_encontrados = set()
