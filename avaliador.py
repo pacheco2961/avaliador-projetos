@@ -1,15 +1,15 @@
 import streamlit as st
-from openai import OpenAI
-import json
 import re
 
-# -----------------------------
-# CONFIGURAÇÃO SEGURA DA API
-# -----------------------------
-if "OPENAI_API_KEY" not in st.secrets:
-    raise ValueError("❌ API Key não encontrada. Configure em Settings → Secrets")
-
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# IA opcional
+try:
+    from openai import OpenAI
+    if "OPENAI_API_KEY" in st.secrets:
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    else:
+        client = None
+except:
+    client = None
 
 CRITERIOS = [
     "coerencia",
@@ -22,35 +22,8 @@ CRITERIOS = [
     "resultados e produtos"
 ]
 
-ESCALA = [0, 5, 10, 15]
-
 # -----------------------------
-# EXTRAÇÃO ROBUSTA DE JSON
-# -----------------------------
-def extrair_json(texto):
-    try:
-        # remove markdown
-        texto = texto.replace("```json", "").replace("```", "")
-
-        match = re.search(r"\{.*\}", texto, re.DOTALL)
-
-        if match:
-            json_str = match.group()
-            return json.loads(json_str)
-
-    except Exception as e:
-        return {
-            "erro": str(e),
-            "resposta_bruta": texto
-        }
-
-    return {
-        "erro": "JSON não encontrado",
-        "resposta_bruta": texto
-    }
-
-# -----------------------------
-# REGRAS DETERMINÍSTICAS
+# REGRAS
 # -----------------------------
 def detectar_ods(texto):
     texto = texto.lower()
@@ -61,112 +34,65 @@ def detectar_ods(texto):
 def detectar_acoes(texto):
     texto = texto.lower()
     palavras = ["oficina", "evento", "ação", "atividade", "sequência didática"]
-    contagem = sum(texto.count(p) for p in palavras)
-    return contagem >= 2
+    return sum(texto.count(p) for p in palavras) >= 2
 
-def normalizar_nota(nota):
-    return min(ESCALA, key=lambda x: abs(x - nota))
+def pontuar(texto, criterio):
+    texto = texto.lower()
+
+    regras = {
+        "coerencia": 10 if "objetivo" in texto else 5,
+        "protagonismo estudantil": 15 if "estudantes" in texto else 5,
+        "participação da sociedade": 15 if "escola" in texto else 5,
+        "justificativa": 10 if "justificativa" in texto else 5,
+        "objetivos": 15 if "objetivo geral" in texto else 10,
+        "metodologia": 15 if "etapa" in texto else 10,
+        "acompanhamento e avaliação": 10 if "avaliação" in texto else 5,
+        "resultados e produtos": 10 if "resultados" in texto else 5
+    }
+
+    return regras.get(criterio, 5)
 
 # -----------------------------
-# AVALIAÇÃO PRINCIPAL
+# PARECER
+# -----------------------------
+def gerar_parecer(resultado):
+    texto = "PARECER TÉCNICO DE AVALIAÇÃO DE PROJETO DE EXTENSÃO\n\n"
+
+    for c, d in resultado["criterios"].items():
+        texto += f"{c.capitalize()}: Nota {d['nota']}\n"
+
+    texto += f"\nODS: {'Atendido' if resultado['ods'] else 'Não atendido'}"
+    texto += f"\nAções: {'Atendido' if resultado['acoes'] else 'Não atendido'}"
+    texto += f"\n\nNota final: {resultado['nota_total']} / 140"
+    texto += f"\nSituação: {'APROVADO' if resultado['aprovado'] else 'REPROVADO'}"
+
+    return texto
+
+# -----------------------------
+# PRINCIPAL
 # -----------------------------
 def avaliar_projeto(texto):
 
-    prompt = f"""
-    Você é um avaliador institucional do IFSP.
-
-    Avalie o projeto conforme o edital PRX 25/2025.
-
-    REGRAS:
-    - Use SOMENTE notas: 0, 5, 10 ou 15
-    - Seja técnico e objetivo
-    - Retorne APENAS JSON válido
-    - NÃO escreva explicações fora do JSON
-    - NÃO use markdown
-    - NÃO use ```json
-
-    CRITÉRIOS:
-    {CRITERIOS}
-
-    FORMATO:
-
-    {{
-    "criterios": {{
-        "coerencia": {{"nota": 10, "comentario": ""}},
-        "protagonismo estudantil": {{"nota": 10, "comentario": ""}},
-        "participação da sociedade": {{"nota": 10, "comentario": ""}},
-        "justificativa": {{"nota": 10, "comentario": ""}},
-        "objetivos": {{"nota": 10, "comentario": ""}},
-        "metodologia": {{"nota": 10, "comentario": ""}},
-        "acompanhamento e avaliação": {{"nota": 10, "comentario": ""}},
-        "resultados e produtos": {{"nota": 10, "comentario": ""}}
-    }}
-    }}
-
-    PROJETO:
-    {texto}
-    """
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1
-        )
-
-        conteudo = response.choices[0].message.content
-
-        resultado = extrair_json(conteudo)
-
-        # -----------------------------
-        # DEBUG (VISÍVEL NO APP)
-        # -----------------------------
-        if "erro" in resultado:
-            return {
-                "nota_total": 0,
-                "criterios": {},
-                "ods": False,
-                "acoes": False,
-                "aprovado": False,
-                "erro": resultado["erro"],
-                "resposta_bruta": resultado["resposta_bruta"]
-            }
-
-        # -----------------------------
-        # VALIDAÇÃO DO JSON
-        # -----------------------------
-        if "criterios" not in resultado:
-            raise ValueError("JSON sem 'criterios'")
-
-        # -----------------------------
-        # NORMALIZAÇÃO DAS NOTAS
-        # -----------------------------
-        for c in resultado["criterios"]:
-            nota = resultado["criterios"][c]["nota"]
-            resultado["criterios"][c]["nota"] = normalizar_nota(nota)
-
-        # -----------------------------
-        # REGRAS FIXAS (EDITAL)
-        # -----------------------------
-        ods = detectar_ods(texto)
-        acoes = detectar_acoes(texto)
-
-        nota_total = sum(c["nota"] for c in resultado["criterios"].values())
-
-        return {
-            "nota_total": nota_total,
-            "criterios": resultado["criterios"],
-            "ods": ods,
-            "acoes": acoes,
-            "aprovado": ods and acoes
+    criterios = {}
+    for c in CRITERIOS:
+        criterios[c] = {
+            "nota": pontuar(texto, c),
+            "comentario": "Avaliação baseada em regras estruturais."
         }
 
-    except Exception as e:
-        return {
-            "nota_total": 0,
-            "criterios": {},
-            "ods": False,
-            "acoes": False,
-            "aprovado": False,
-            "erro": str(e)
-        }
+    ods = detectar_ods(texto)
+    acoes = detectar_acoes(texto)
+
+    nota_total = sum(c["nota"] for c in criterios.values())
+
+    resultado = {
+        "nota_total": nota_total,
+        "criterios": criterios,
+        "ods": ods,
+        "acoes": acoes,
+        "aprovado": ods and acoes
+    }
+
+    resultado["parecer"] = gerar_parecer(resultado)
+
+    return resultado
