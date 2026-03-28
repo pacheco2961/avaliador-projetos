@@ -2,7 +2,6 @@ import streamlit as st
 from utils import extrair_texto_pdf
 from avaliador import avaliar_projeto
 
-# PDF
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
@@ -59,7 +58,7 @@ else:
         st.success("PDF carregado")
 
 # -----------------------------
-# AVALIAÇÃO
+# EXECUÇÃO
 # -----------------------------
 if st.button("🚀 Avaliar Projeto"):
     if not texto_projeto:
@@ -74,6 +73,10 @@ if st.button("🚀 Avaliar Projeto"):
             st.write(f"{c}: {d['nota']}")
 
         st.write("ODS:", "✔️" if resultado["ods"] else "❌")
+
+        if resultado["ods"]:
+            st.write("ODS detectados:", resultado["ods_lista"])
+
         st.write("Ações:", "✔️" if resultado["acoes"] else "❌")
 
         st.success("APROVADO" if resultado["aprovado"] else "REPROVADO")
