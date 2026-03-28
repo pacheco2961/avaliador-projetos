@@ -1,6 +1,6 @@
 import streamlit as st
 from utils import extrair_texto_pdf
-from avaliador import avaliar_projeto
+from avaliador import avaliar_projeto, ODS_NOMES
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -30,6 +30,8 @@ def gerar_pdf_parecer(texto_parecer):
     elementos.append(Spacer(1, 12))
 
     for linha in texto_parecer.split("\n"):
+        if "_____" in linha:
+            elementos.append(Spacer(1, 20))
         elementos.append(Paragraph(linha, styles["Normal"]))
         elementos.append(Spacer(1, 8))
 
@@ -75,15 +77,17 @@ if st.button("🚀 Avaliar Projeto"):
         st.write("ODS:", "✔️" if resultado["ods"] else "❌")
 
         if resultado["ods"]:
-            st.write("ODS detectados:", resultado["ods_lista"])
+            ods_formatado = ", ".join([
+                f"ODS {i} – {ODS_NOMES.get(i, '')}"
+                for i in resultado["ods_lista"]
+            ])
+            st.write("ODS detectados:", ods_formatado)
 
         st.write("Ações:", "✔️" if resultado["acoes"] else "❌")
 
         st.success("APROVADO" if resultado["aprovado"] else "REPROVADO")
 
-        # -----------------------------
-        # PARECER
-        # -----------------------------
+        # Parecer
         st.write("### 📄 Parecer Técnico")
 
         parecer = resultado["parecer"]
