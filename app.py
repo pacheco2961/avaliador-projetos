@@ -26,7 +26,18 @@ if st.button("🚀 Avaliar Projeto"):
     else:
         with st.spinner("Avaliando..."):
             resultado = avaliar_projeto(texto_projeto)
+with st.spinner("Avaliando..."):
+    resultado = avaliar_projeto(texto_projeto)
 
+if "erro" in resultado:
+    st.error("Erro na avaliação:")
+    st.write(resultado["erro"])
+
+    if "resposta_bruta" in resultado:
+        st.write("Resposta da IA:")
+        st.write(resultado["resposta_bruta"])
+
+st.subheader("📊 Resultado")
         st.subheader("📊 Resultado")
 
         st.metric("Nota Final", f"{resultado['nota_total']} / 140")
