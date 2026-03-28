@@ -1,4 +1,3 @@
-app.py
 import streamlit as st
 from utils import extrair_texto_pdf
 from avaliador import avaliar_projeto
